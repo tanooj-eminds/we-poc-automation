@@ -45,7 +45,7 @@ export class InvitePage extends BasePage {
     await this.locators.yopmailLoginInput.fill(emailPrefix);
     await this.page.waitForTimeout(1000);
     await this.locators.yopmailCheckBtn.click();
-    await this.page.waitForLoadState('networkidle', { timeout: 30000 });
+    await this.page.waitForLoadState('domcontentloaded', { timeout: 50000 });;
     
     try {
       await this.page.waitForSelector('#ifmail', { timeout: 30000, state: 'visible' });
