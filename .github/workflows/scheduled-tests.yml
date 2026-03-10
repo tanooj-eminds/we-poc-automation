@@ -449,12 +449,20 @@ jobs:
                       <!-- VIEW REPORT BUTTON -->
                       <tr>
                         <td style="padding:28px 36px;text-align:center;">
-                          <a href="${{ steps.label.outputs.run_url }}"
-                             style="display:inline-block;background:linear-gradient(135deg,#1a237e,#3949ab);color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
-                            📋 View Full Report &amp; Download Artifacts
-                          </a>
-                          <p style="margin:12px 0 0;font-size:12px;color:#9e9e9e;">
-                            Screenshots and detailed HTML reports are available as downloadable artifacts in the link above.
+                          <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                            <tr>
+                              <td style="background:#1a237e;border-radius:8px;padding:0;">
+                                <a href="${{ steps.label.outputs.run_url }}"
+                                   target="_blank"
+                                   style="display:inline-block;background:linear-gradient(135deg,#1a237e,#3949ab);color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;mso-padding-alt:14px 36px;">
+                                  &#x1F4CB; Click Here to View Full Report &amp; Download Artifacts
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin:14px 0 0;font-size:12px;color:#9e9e9e;">
+                            Screenshots and detailed HTML reports are available as downloadable artifacts.<br/>
+                            <a href="${{ steps.label.outputs.run_url }}" target="_blank" style="color:#3949ab;font-size:12px;word-break:break-all;">${{ steps.label.outputs.run_url }}</a>
                           </p>
                         </td>
                       </tr>
