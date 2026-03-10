@@ -2,7 +2,7 @@
 
 ## 📌 Project Overview
 
-This repository contains the automation framework for the **WE-POC** (Women Empowerment Proof of Concept) application — a government survey and analytics platform for Andhra Pradesh, India.
+This repository contains the automation framework for the **WE-POC** (Women Empowerment Proof of Concept) application — a government survey and analytics platform for Telangana, India.
 
 The framework is designed to perform end-to-end **UI and API testing** using modern automation tools, ensuring application quality through reliable, scalable, and maintainable automated tests.
 
