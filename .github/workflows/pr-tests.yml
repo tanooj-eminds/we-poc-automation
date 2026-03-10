@@ -16,6 +16,16 @@ jobs:
     name: Run All Tests
     runs-on: ubuntu-latest
 
+    # Job-level env — no need to repeat in every step
+    env:
+      BASE_URL:     ${{ secrets.BASE_URL }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      YOPMAIL_URL:  ${{ secrets.YOPMAIL_URL }}
+      UI_EMAIL:     ${{ secrets.UI_EMAIL }}
+      UI_PASSWORD:  ${{ secrets.UI_PASSWORD }}
+      API_EMAIL:    ${{ secrets.API_EMAIL }}
+      API_PASSWORD: ${{ secrets.API_PASSWORD }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,23 +39,23 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Cache Playwright browser — avoids re-downloading (~45s saved per run)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright Chromium browser
         run: npx playwright install chromium --with-deps
 
+      # Single test run with both reporters — eliminates the duplicate run
       - name: Run all tests
         id: run_tests
         continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
         run: |
           npx playwright test \
-            --reporter=list \
+            --reporter=list,html \
             2>&1 | tee test_output.txt
 
       - name: Parse test results
@@ -72,22 +82,6 @@ jobs:
           else
             echo "status=PASSED" >> $GITHUB_OUTPUT
           fi
-
-      - name: Generate HTML report
-        if: always()
-        continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
-        run: |
-          npx playwright test \
-            --reporter=html \
-            2>/dev/null || true
 
       - name: Upload HTML report
         if: always()
@@ -117,7 +111,6 @@ jobs:
             const status  = '${{ steps.parse.outputs.status }}';
             const runUrl  = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
 
-            const icon   = status === 'PASSED' ? '✅' : '❌';
             const header = status === 'PASSED'
               ? '## ✅ All Tests Passed!'
               : '## ❌ Some Tests Failed!';

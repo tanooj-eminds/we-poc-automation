@@ -28,6 +28,18 @@ jobs:
   ui-tests:
     name: UI Tests
     runs-on: ubuntu-latest
+    # Skip this job if manual trigger selected 'api' only
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.test_suite == 'all' || inputs.test_suite == 'ui' }}
+
+    # Job-level env — no need to repeat in every step
+    env:
+      BASE_URL:     ${{ secrets.BASE_URL }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      YOPMAIL_URL:  ${{ secrets.YOPMAIL_URL }}
+      UI_EMAIL:     ${{ secrets.UI_EMAIL }}
+      UI_PASSWORD:  ${{ secrets.UI_PASSWORD }}
+      API_EMAIL:    ${{ secrets.API_EMAIL }}
+      API_PASSWORD: ${{ secrets.API_PASSWORD }}
 
     outputs:
       ui_status:   ${{ steps.result.outputs.ui_status }}
@@ -50,25 +62,26 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Cache Playwright browser — avoids re-downloading (~45s saved per run)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright Chromium browser
         run: npx playwright install chromium --with-deps
 
+      # Single test run with both reporters — eliminates the duplicate run
       - name: Run UI tests
         id: run_ui
         continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
         run: |
           START=$(date +%s)
 
           npx playwright test tests/ui/ \
-            --reporter=list \
+            --reporter=list,html \
+            --output=ui-test-results \
             2>&1 | tee ui_output.txt
 
           END=$(date +%s)
@@ -98,29 +111,12 @@ jobs:
             STATUS="PASSED"
           fi
 
-          echo "ui_status=$STATUS"    >> $GITHUB_OUTPUT
-          echo "ui_passed=$PASSED"    >> $GITHUB_OUTPUT
-          echo "ui_failed=$FAILED"    >> $GITHUB_OUTPUT
-          echo "ui_skipped=$SKIPPED"  >> $GITHUB_OUTPUT
-          echo "ui_total=$TOTAL"      >> $GITHUB_OUTPUT
+          echo "ui_status=$STATUS"     >> $GITHUB_OUTPUT
+          echo "ui_passed=$PASSED"     >> $GITHUB_OUTPUT
+          echo "ui_failed=$FAILED"     >> $GITHUB_OUTPUT
+          echo "ui_skipped=$SKIPPED"   >> $GITHUB_OUTPUT
+          echo "ui_total=$TOTAL"       >> $GITHUB_OUTPUT
           echo "ui_duration=$DURATION" >> $GITHUB_OUTPUT
-
-      - name: Generate UI HTML report
-        if: always()
-        continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
-        run: |
-          npx playwright test tests/ui/ \
-            --reporter=html \
-            --output=ui-test-results \
-            2>/dev/null || true
 
       - name: Upload UI HTML report
         if: always()
@@ -144,6 +140,18 @@ jobs:
   api-tests:
     name: API Tests
     runs-on: ubuntu-latest
+    # Skip this job if manual trigger selected 'ui' only
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.test_suite == 'all' || inputs.test_suite == 'api' }}
+
+    # Job-level env — no need to repeat in every step
+    env:
+      BASE_URL:     ${{ secrets.BASE_URL }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      YOPMAIL_URL:  ${{ secrets.YOPMAIL_URL }}
+      UI_EMAIL:     ${{ secrets.UI_EMAIL }}
+      UI_PASSWORD:  ${{ secrets.UI_PASSWORD }}
+      API_EMAIL:    ${{ secrets.API_EMAIL }}
+      API_PASSWORD: ${{ secrets.API_PASSWORD }}
 
     outputs:
       api_status:   ${{ steps.result.outputs.api_status }}
@@ -166,25 +174,26 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Cache Playwright browser — avoids re-downloading (~45s saved per run)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright Chromium browser
         run: npx playwright install chromium --with-deps
 
+      # Single test run with both reporters — eliminates the duplicate run
       - name: Run API tests
         id: run_api
         continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
         run: |
           START=$(date +%s)
 
           npx playwright test tests/api/ \
-            --reporter=list \
+            --reporter=list,html \
+            --output=api-test-results \
             2>&1 | tee api_output.txt
 
           END=$(date +%s)
@@ -214,29 +223,12 @@ jobs:
             STATUS="PASSED"
           fi
 
-          echo "api_status=$STATUS"    >> $GITHUB_OUTPUT
-          echo "api_passed=$PASSED"    >> $GITHUB_OUTPUT
-          echo "api_failed=$FAILED"    >> $GITHUB_OUTPUT
-          echo "api_skipped=$SKIPPED"  >> $GITHUB_OUTPUT
-          echo "api_total=$TOTAL"      >> $GITHUB_OUTPUT
+          echo "api_status=$STATUS"     >> $GITHUB_OUTPUT
+          echo "api_passed=$PASSED"     >> $GITHUB_OUTPUT
+          echo "api_failed=$FAILED"     >> $GITHUB_OUTPUT
+          echo "api_skipped=$SKIPPED"   >> $GITHUB_OUTPUT
+          echo "api_total=$TOTAL"       >> $GITHUB_OUTPUT
           echo "api_duration=$DURATION" >> $GITHUB_OUTPUT
-
-      - name: Generate API HTML report
-        if: always()
-        continue-on-error: true
-        env:
-          BASE_URL:      ${{ secrets.BASE_URL }}
-          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
-          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
-          ui_email:      ${{ secrets.UI_EMAIL }}
-          ui_password:   ${{ secrets.UI_PASSWORD }}
-          api_email:     ${{ secrets.API_EMAIL }}
-          api_password:  ${{ secrets.API_PASSWORD }}
-        run: |
-          npx playwright test tests/api/ \
-            --reporter=html \
-            --output=api-test-results \
-            2>/dev/null || true
 
       - name: Upload API HTML report
         if: always()
