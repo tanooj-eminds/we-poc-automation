@@ -1,0 +1,480 @@
+name: Scheduled Playwright Tests - Morning and Evening
+
+on:
+  # 10:00 AM IST = 04:30 UTC
+  # 04:00 PM IST = 10:30 UTC
+  schedule:
+    - cron: '30 4 * * *'
+    - cron: '30 10 * * *'
+
+  # Manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Which tests to run?'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ui
+          - api
+
+jobs:
+
+  # ──────────────────────────────────────────
+  # JOB 1: Run UI Tests
+  # ──────────────────────────────────────────
+  ui-tests:
+    name: UI Tests
+    runs-on: ubuntu-latest
+
+    outputs:
+      ui_status:   ${{ steps.result.outputs.ui_status }}
+      ui_passed:   ${{ steps.result.outputs.ui_passed }}
+      ui_failed:   ${{ steps.result.outputs.ui_failed }}
+      ui_skipped:  ${{ steps.result.outputs.ui_skipped }}
+      ui_total:    ${{ steps.result.outputs.ui_total }}
+      ui_duration: ${{ steps.result.outputs.ui_duration }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Run UI tests
+        id: run_ui
+        continue-on-error: true
+        env:
+          BASE_URL:      ${{ secrets.BASE_URL }}
+          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
+          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
+          ui_email:      ${{ secrets.UI_EMAIL }}
+          ui_password:   ${{ secrets.UI_PASSWORD }}
+          api_email:     ${{ secrets.API_EMAIL }}
+          api_password:  ${{ secrets.API_PASSWORD }}
+        run: |
+          START=$(date +%s)
+
+          npx playwright test tests/ui/ \
+            --reporter=list \
+            2>&1 | tee ui_output.txt
+
+          END=$(date +%s)
+          echo "ELAPSED=$((END - START))" >> $GITHUB_ENV
+
+      - name: Parse UI test results
+        id: result
+        run: |
+          OUTPUT=$(cat ui_output.txt 2>/dev/null || echo "")
+
+          PASSED=$(echo "$OUTPUT"  | grep -oP '\d+(?= passed)'  | tail -1 || echo "0")
+          FAILED=$(echo "$OUTPUT"  | grep -oP '\d+(?= failed)'  | tail -1 || echo "0")
+          SKIPPED=$(echo "$OUTPUT" | grep -oP '\d+(?= skipped)' | tail -1 || echo "0")
+
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          SKIPPED=${SKIPPED:-0}
+          TOTAL=$((PASSED + FAILED + SKIPPED))
+
+          MINS=$(( ELAPSED / 60 ))
+          SECS=$(( ELAPSED % 60 ))
+          DURATION="${MINS}m ${SECS}s"
+
+          if [ "$FAILED" -gt "0" ]; then
+            STATUS="FAILED"
+          else
+            STATUS="PASSED"
+          fi
+
+          echo "ui_status=$STATUS"    >> $GITHUB_OUTPUT
+          echo "ui_passed=$PASSED"    >> $GITHUB_OUTPUT
+          echo "ui_failed=$FAILED"    >> $GITHUB_OUTPUT
+          echo "ui_skipped=$SKIPPED"  >> $GITHUB_OUTPUT
+          echo "ui_total=$TOTAL"      >> $GITHUB_OUTPUT
+          echo "ui_duration=$DURATION" >> $GITHUB_OUTPUT
+
+      - name: Generate UI HTML report
+        if: always()
+        continue-on-error: true
+        env:
+          BASE_URL:      ${{ secrets.BASE_URL }}
+          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
+          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
+          ui_email:      ${{ secrets.UI_EMAIL }}
+          ui_password:   ${{ secrets.UI_PASSWORD }}
+          api_email:     ${{ secrets.API_EMAIL }}
+          api_password:  ${{ secrets.API_PASSWORD }}
+        run: |
+          npx playwright test tests/ui/ \
+            --reporter=html \
+            --output=ui-test-results \
+            2>/dev/null || true
+
+      - name: Upload UI HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UI-HTML-Report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload UI failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UI-Test-Results
+          path: ui-test-results/
+          retention-days: 7
+
+  # ──────────────────────────────────────────
+  # JOB 2: Run API Tests
+  # ──────────────────────────────────────────
+  api-tests:
+    name: API Tests
+    runs-on: ubuntu-latest
+
+    outputs:
+      api_status:   ${{ steps.result.outputs.api_status }}
+      api_passed:   ${{ steps.result.outputs.api_passed }}
+      api_failed:   ${{ steps.result.outputs.api_failed }}
+      api_skipped:  ${{ steps.result.outputs.api_skipped }}
+      api_total:    ${{ steps.result.outputs.api_total }}
+      api_duration: ${{ steps.result.outputs.api_duration }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Run API tests
+        id: run_api
+        continue-on-error: true
+        env:
+          BASE_URL:      ${{ secrets.BASE_URL }}
+          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
+          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
+          ui_email:      ${{ secrets.UI_EMAIL }}
+          ui_password:   ${{ secrets.UI_PASSWORD }}
+          api_email:     ${{ secrets.API_EMAIL }}
+          api_password:  ${{ secrets.API_PASSWORD }}
+        run: |
+          START=$(date +%s)
+
+          npx playwright test tests/api/ \
+            --reporter=list \
+            2>&1 | tee api_output.txt
+
+          END=$(date +%s)
+          echo "ELAPSED=$((END - START))" >> $GITHUB_ENV
+
+      - name: Parse API test results
+        id: result
+        run: |
+          OUTPUT=$(cat api_output.txt 2>/dev/null || echo "")
+
+          PASSED=$(echo "$OUTPUT"  | grep -oP '\d+(?= passed)'  | tail -1 || echo "0")
+          FAILED=$(echo "$OUTPUT"  | grep -oP '\d+(?= failed)'  | tail -1 || echo "0")
+          SKIPPED=$(echo "$OUTPUT" | grep -oP '\d+(?= skipped)' | tail -1 || echo "0")
+
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          SKIPPED=${SKIPPED:-0}
+          TOTAL=$((PASSED + FAILED + SKIPPED))
+
+          MINS=$(( ELAPSED / 60 ))
+          SECS=$(( ELAPSED % 60 ))
+          DURATION="${MINS}m ${SECS}s"
+
+          if [ "$FAILED" -gt "0" ]; then
+            STATUS="FAILED"
+          else
+            STATUS="PASSED"
+          fi
+
+          echo "api_status=$STATUS"    >> $GITHUB_OUTPUT
+          echo "api_passed=$PASSED"    >> $GITHUB_OUTPUT
+          echo "api_failed=$FAILED"    >> $GITHUB_OUTPUT
+          echo "api_skipped=$SKIPPED"  >> $GITHUB_OUTPUT
+          echo "api_total=$TOTAL"      >> $GITHUB_OUTPUT
+          echo "api_duration=$DURATION" >> $GITHUB_OUTPUT
+
+      - name: Generate API HTML report
+        if: always()
+        continue-on-error: true
+        env:
+          BASE_URL:      ${{ secrets.BASE_URL }}
+          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
+          Yopmail_URL:   ${{ secrets.YOPMAIL_URL }}
+          ui_email:      ${{ secrets.UI_EMAIL }}
+          ui_password:   ${{ secrets.UI_PASSWORD }}
+          api_email:     ${{ secrets.API_EMAIL }}
+          api_password:  ${{ secrets.API_PASSWORD }}
+        run: |
+          npx playwright test tests/api/ \
+            --reporter=html \
+            --output=api-test-results \
+            2>/dev/null || true
+
+      - name: Upload API HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: API-HTML-Report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload API failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: API-Test-Results
+          path: api-test-results/
+          retention-days: 7
+
+  # ──────────────────────────────────────────
+  # JOB 3: Send Email Report
+  # Runs after both UI and API jobs finish
+  # ──────────────────────────────────────────
+  send-email:
+    name: Send Email Report
+    runs-on: ubuntu-latest
+    needs: [ui-tests, api-tests]
+    if: always()
+
+    steps:
+      - name: Set run label
+        id: label
+        run: |
+          HOUR=$(date -u +%H)
+          EVENT="${{ github.event_name }}"
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "label=Manual Trigger" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -ge "04" ] && [ "$HOUR" -lt "10" ]; then
+            echo "label=Morning Run - 10:00 AM IST" >> $GITHUB_OUTPUT
+          else
+            echo "label=Evening Run - 04:00 PM IST" >> $GITHUB_OUTPUT
+          fi
+
+          echo "datetime=$(TZ='Asia/Kolkata' date +'%d %b %Y at %I:%M %p IST')" >> $GITHUB_OUTPUT
+          echo "run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+      - name: Set email subject
+        id: subject
+        run: |
+          UI="${{ needs.ui-tests.outputs.ui_status }}"
+          API="${{ needs.api-tests.outputs.api_status }}"
+
+          if [ "$UI" = "FAILED" ] || [ "$API" = "FAILED" ]; then
+            echo "line=❌ WE-POC Test Report - Issues Found | ${{ steps.label.outputs.label }}" >> $GITHUB_OUTPUT
+          else
+            echo "line=✅ WE-POC Test Report - All Passed | ${{ steps.label.outputs.label }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send HTML email report
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.EMAIL_SENDER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: ${{ secrets.EMAIL_RECIPIENTS }}
+          from: WE-POC Automation <${{ secrets.EMAIL_SENDER }}>
+          subject: ${{ steps.subject.outputs.line }}
+          convert_markdown: false
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+              <title>WE-POC Test Report</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;">
+
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:30px 0;">
+                <tr>
+                  <td align="center">
+                    <table width="620" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.10);">
+
+                      <!-- HEADER -->
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#1a237e 0%,#3949ab 100%);padding:32px 36px;text-align:center;">
+                          <p style="margin:0;font-size:13px;color:#c5cae9;letter-spacing:2px;text-transform:uppercase;">Telangana Women Empowerment</p>
+                          <h1 style="margin:8px 0 4px;font-size:26px;color:#ffffff;letter-spacing:0.5px;">WE-POC Automation Report</h1>
+                          <p style="margin:0;font-size:13px;color:#9fa8da;">${{ steps.label.outputs.label }} &nbsp;&bull;&nbsp; ${{ steps.label.outputs.datetime }}</p>
+                        </td>
+                      </tr>
+
+                      <!-- OVERALL STATUS BANNER -->
+                      <tr>
+                        <td style="padding:0;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td width="50%" style="padding:20px 18px 20px 36px;">
+                                <table cellpadding="0" cellspacing="0" width="100%" style="background:#f8f9ff;border:1px solid #e8eaf6;border-radius:8px;padding:16px;">
+                                  <tr>
+                                    <td style="text-align:center;">
+                                      <p style="margin:0;font-size:11px;color:#9e9e9e;text-transform:uppercase;letter-spacing:1px;">UI Tests</p>
+                                      <p style="margin:6px 0 0;font-size:20px;font-weight:bold;color:${{ needs.ui-tests.outputs.ui_status == 'PASSED' && '#2e7d32' || '#c62828' }};">
+                                        ${{ needs.ui-tests.outputs.ui_status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }}
+                                      </p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                              <td width="50%" style="padding:20px 36px 20px 18px;">
+                                <table cellpadding="0" cellspacing="0" width="100%" style="background:#f8f9ff;border:1px solid #e8eaf6;border-radius:8px;padding:16px;">
+                                  <tr>
+                                    <td style="text-align:center;">
+                                      <p style="margin:0;font-size:11px;color:#9e9e9e;text-transform:uppercase;letter-spacing:1px;">API Tests</p>
+                                      <p style="margin:6px 0 0;font-size:20px;font-weight:bold;color:${{ needs.api-tests.outputs.api_status == 'PASSED' && '#2e7d32' || '#c62828' }};">
+                                        ${{ needs.api-tests.outputs.api_status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }}
+                                      </p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- UI TEST DETAILS -->
+                      <tr>
+                        <td style="padding:8px 36px 0;">
+                          <p style="margin:0 0 10px;font-size:15px;font-weight:bold;color:#1a237e;border-left:4px solid #3949ab;padding-left:10px;">🖥️ UI Test Results</p>
+                          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8eaf6;border-radius:8px;overflow:hidden;">
+                            <tr style="background:#e8eaf6;">
+                              <th style="padding:10px 16px;text-align:left;font-size:13px;color:#3949ab;">Metric</th>
+                              <th style="padding:10px 16px;text-align:center;font-size:13px;color:#3949ab;">Count</th>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">✅ Passed</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#e8f5e9;color:#2e7d32;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.ui-tests.outputs.ui_passed }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">❌ Failed</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#ffebee;color:#c62828;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.ui-tests.outputs.ui_failed }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">⏭️ Skipped</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#fff3e0;color:#e65100;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.ui-tests.outputs.ui_skipped }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">📊 Total</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#e3f2fd;color:#1565c0;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.ui-tests.outputs.ui_total }}</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">⏱️ Duration</td>
+                              <td style="padding:10px 16px;text-align:center;font-size:13px;color:#555;">${{ needs.ui-tests.outputs.ui_duration }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- API TEST DETAILS -->
+                      <tr>
+                        <td style="padding:20px 36px 0;">
+                          <p style="margin:0 0 10px;font-size:15px;font-weight:bold;color:#1a237e;border-left:4px solid #3949ab;padding-left:10px;">🔌 API Test Results</p>
+                          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8eaf6;border-radius:8px;overflow:hidden;">
+                            <tr style="background:#e8eaf6;">
+                              <th style="padding:10px 16px;text-align:left;font-size:13px;color:#3949ab;">Metric</th>
+                              <th style="padding:10px 16px;text-align:center;font-size:13px;color:#3949ab;">Count</th>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">✅ Passed</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#e8f5e9;color:#2e7d32;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.api-tests.outputs.api_passed }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">❌ Failed</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#ffebee;color:#c62828;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.api-tests.outputs.api_failed }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">⏭️ Skipped</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#fff3e0;color:#e65100;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.api-tests.outputs.api_skipped }}</span>
+                              </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;">
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">📊 Total</td>
+                              <td style="padding:10px 16px;text-align:center;">
+                                <span style="background:#e3f2fd;color:#1565c0;padding:3px 12px;border-radius:12px;font-weight:bold;font-size:13px;">${{ needs.api-tests.outputs.api_total }}</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:10px 16px;font-size:13px;color:#333;">⏱️ Duration</td>
+                              <td style="padding:10px 16px;text-align:center;font-size:13px;color:#555;">${{ needs.api-tests.outputs.api_duration }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- VIEW REPORT BUTTON -->
+                      <tr>
+                        <td style="padding:28px 36px;text-align:center;">
+                          <a href="${{ steps.label.outputs.run_url }}"
+                             style="display:inline-block;background:linear-gradient(135deg,#1a237e,#3949ab);color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
+                            📋 View Full Report &amp; Download Artifacts
+                          </a>
+                          <p style="margin:12px 0 0;font-size:12px;color:#9e9e9e;">
+                            Screenshots and detailed HTML reports are available as downloadable artifacts in the link above.
+                          </p>
+                        </td>
+                      </tr>
+
+                      <!-- FOOTER -->
+                      <tr>
+                        <td style="background:#f5f5f5;padding:16px 36px;border-top:1px solid #e0e0e0;text-align:center;">
+                          <p style="margin:0;font-size:11px;color:#9e9e9e;">
+                            WE-POC Automation Framework &nbsp;&bull;&nbsp; Run #${{ github.run_number }} &nbsp;&bull;&nbsp; Branch: ${{ github.ref_name }}
+                          </p>
+                          <p style="margin:4px 0 0;font-size:11px;color:#bdbdbd;">
+                            This is an automated email. Do not reply.
+                          </p>
+                        </td>
+                      </tr>
+
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+            </body>
+            </html>
