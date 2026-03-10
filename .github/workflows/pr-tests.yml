@@ -20,11 +20,11 @@ jobs:
     env:
       BASE_URL:     ${{ secrets.BASE_URL }}
       API_BASE_URL: ${{ secrets.API_BASE_URL }}
-      YOPMAIL_URL:  ${{ secrets.YOPMAIL_URL }}
-      UI_EMAIL:     ${{ secrets.UI_EMAIL }}
-      UI_PASSWORD:  ${{ secrets.UI_PASSWORD }}
-      API_EMAIL:    ${{ secrets.API_EMAIL }}
-      API_PASSWORD: ${{ secrets.API_PASSWORD }}
+      Yopmail_URL:  ${{ secrets.YOPMAIL_URL }}
+      ui_email:     ${{ secrets.UI_EMAIL }}
+      ui_password:  ${{ secrets.UI_PASSWORD }}
+      api_email:    ${{ secrets.API_EMAIL }}
+      api_password: ${{ secrets.API_PASSWORD }}
 
     steps:
       - name: Checkout code
