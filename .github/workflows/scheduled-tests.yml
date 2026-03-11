@@ -250,11 +250,12 @@ jobs:
   # JOB 3: Send Email Report
   # Runs after both UI and API jobs finish
   # ──────────────────────────────────────────
+  # Fixed — email always sends regardless of skipped jobs
   send-email:
     name: Send Email Report
     runs-on: ubuntu-latest
     needs: [ui-tests, api-tests]
-    if: always()
+    if: ${{ always() && (needs.ui-tests.result != 'skipped' || needs.api-tests.result != 'skipped') }}
 
     steps:
       - name: Set run label
