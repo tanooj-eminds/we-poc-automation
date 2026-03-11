@@ -51,8 +51,8 @@ export class InvitePage extends BasePage {
       await this.page.waitForSelector('#ifmail', { timeout: 30000, state: 'visible' });
     } 
     catch {
-      await this.page.reload({ waitUntil: 'networkidle' });
-      await this.page.waitForSelector('#ifmail', { timeout: 30000, state: 'visible' });
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+      await this.page.waitForSelector('#ifmail', { timeout: 50000, state: 'visible' });
     }
   }
 

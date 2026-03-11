@@ -4,8 +4,8 @@ on:
   # 10:00 AM IST = 04:30 UTC
   # 04:00 PM IST = 10:30 UTC
   schedule:
-    - cron: '30 4 * * *'
-    - cron: '30 10 * * *'
+    - cron: '30 3 * * *'
+    - cron: '30 9 * * *'
 
   # Manual trigger from GitHub Actions UI
   workflow_dispatch:
@@ -266,7 +266,7 @@ jobs:
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
             echo "label=Manual Trigger" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" -ge "04" ] && [ "$HOUR" -lt "10" ]; then
+          elif [ "$HOUR" -ge "03" ] && [ "$HOUR" -lt "09" ]; then
             echo "label=Morning Run - 10:00 AM IST" >> $GITHUB_OUTPUT
           else
             echo "label=Evening Run - 04:00 PM IST" >> $GITHUB_OUTPUT
