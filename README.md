@@ -71,7 +71,7 @@ npx playwright install
 
 Create a `.env` file in the project root:
 ```dotenv
-BASE_URL=https://we-poc.ddns.net
+BASE_URL=https://we-gov.ddns.net/
 API_BASE_URL=https://api-we.ddns.net/api
 Yopmail_URL=https://yopmail.com/en/
 
